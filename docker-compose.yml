@@ -1,0 +1,32 @@
+version: '3'
+
+services:
+  wake-word-detection:
+    build: ./wake-word-detection
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./wake-word-detection:/app
+
+  command-processing:
+    build: ./command-processing
+    volumes:
+      - ./command-processing:/app
+
+  voice-synthesis:
+    build: ./voice-synthesis
+    volumes:
+      - ./voice-synthesis:/app
+
+  web-server:
+    build: ./web-server
+    ports:
+      - "80:80"
+    depends_on:
+      - wake-word-detection
+      - command-processing
+      - voice-synthesis
+
+networks:
+  default:
+    driver: bridge
