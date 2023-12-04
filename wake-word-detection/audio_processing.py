@@ -15,7 +15,8 @@ socketio = SocketIO(app, async_mode='gevent')
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
 RATE = 16000
-CHUNK = 1280
+FRAME_DURATION_MS = 30  # Frame duration in ms for VAD (10, 20, or 30 ms)
+CHUNK = int(RATE * FRAME_DURATION_MS / 1000)  # Number of frames per buffer
 
 # Load pre-trained openwakeword models
 model_path = os.path.join(os.path.dirname(__file__), 'models', 'hey_nova.tflite')
