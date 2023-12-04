@@ -3,8 +3,6 @@ version: '3'
 services:
   wake-word-detection:
     build: ./wake-word-detection
-    ports:
-      - "5001:5001"
     volumes:
       - ./wake-word-detection:/app
 
