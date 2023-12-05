@@ -5,26 +5,37 @@ services:
     build: ./wake-word-detection
     volumes:
       - ./wake-word-detection:/app
+    networks:
+      - internal
 
   command-processing:
     build: ./command-processing
     volumes:
       - ./command-processing:/app
+    networks:
+      - internal
 
   voice-synthesis:
     build: ./voice-synthesis
     volumes:
       - ./voice-synthesis:/app
+    networks:
+      - internal
 
   web-server:
     build: ./web-server
     ports:
       - "80:80"
+    networks:
+      - internal
+      - default
     depends_on:
       - wake-word-detection
       - command-processing
       - voice-synthesis
 
 networks:
+  internal:
+    internal: true
   default:
     driver: bridge

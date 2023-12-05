@@ -1,78 +1,80 @@
-from flask import Flask
-from flask import request
+from flask import Flask, request
 from flask_socketio import SocketIO
 import numpy as np
 from openwakeword.model import Model
 import pyaudio
-import sys
 import os
 import time
+import sys
 
 app = Flask(__name__)
-socketio = SocketIO(app, async_mode='gevent')
+socketio = SocketIO(app, async_mode='gevent', path='/wake-word-detection')
 
 # Audio stream configuration
 FORMAT = pyaudio.paInt16
 CHANNELS = 1
 RATE = 16000
-FRAME_DURATION_MS = 30  # Frame duration in ms for VAD (10, 20, or 30 ms)
-CHUNK = int(RATE * FRAME_DURATION_MS / 1000)  # Number of frames per buffer
+FRAME_DURATION_MS = 30
+CHUNK = int(RATE * FRAME_DURATION_MS / 1000)
 
-# Load pre-trained openwakeword models
+# Pre-trained openwakeword model path
 model_path = os.path.join(os.path.dirname(__file__), 'models', 'hey_nova.tflite')
-inference_framework = 'tflite'  # Change to 'onnx' if you are using ONNX models
-owwModel = Model(wakeword_models=[model_path], inference_framework=inference_framework)
+inference_framework = 'tflite'
 
-# Global variable to track the last detection time
-# Dictionary to track the last detection time for each client
+# Global variables
 last_detection_times = {}
-DEBOUNCE_PERIOD = 1  # seconds
+client_models = {}
+DEBOUNCE_PERIOD = 1
+
+def load_model():
+    return Model(wakeword_models=[model_path], inference_framework=inference_framework)
 
 @socketio.on('connect')
 def handle_connect():
     print("Client connected")
-    # Any additional code you want to run when a client connects
+    sys.stdout.flush()
+    client_sid = request.sid
+    client_models[client_sid] = load_model()
+    last_detection_times[client_sid] = 0
+    print("Model loaded")
+    sys.stdout.flush()
 
 @socketio.on('disconnect')
 def handle_disconnect():
+    client_sid = request.sid
+    if client_sid in client_models:
+        del client_models[client_sid]
+        del last_detection_times[client_sid]
     print("Client disconnected")
+    sys.stdout.flush()
 
 @socketio.on('stream_audio')
 def handle_stream_audio(data):
-    global last_detection_time
-    
-    client_sid = request.sid
-    if client_sid not in last_detection_times:
-        last_detection_times[client_sid] = 0
-    
-    if isinstance(data, bytes):
-        # Process the audio data
-        audio_data = np.frombuffer(data, dtype=np.int16)
-
-        # Feed to openWakeWord model
-        prediction = owwModel.predict(audio_data)
-        
-        # Process the prediction
-        for mdl, scores in owwModel.prediction_buffer.items():
-            curr_score = scores[-1]
-            if curr_score > 0.5:
-                current_time = time.time()
-
-                # Check if the detection is within the debounce period for this client
-                if current_time - last_detection_times[client_sid] > DEBOUNCE_PERIOD:
-                    last_detection_times[client_sid] = current_time
-                    print(f"Wake word detected by model {mdl} with score {curr_score}")
-
-                    # Convert curr_score to native Python float for JSON serialization
-                    curr_score = float(curr_score)
-
-                    # Emitting an event to the specific client
-                    socketio.emit('wake_word_detected', {'model': mdl, 'score': curr_score}, room=client_sid)
-                else:
-                    print("Wake word detection ignored due to debounce period")
-    else:
-        print("Received non-bytes data")
-        print(data)
+    try:
+        client_sid = request.sid
+        if isinstance(data, bytes):
+            audio_data = np.frombuffer(data, dtype=np.int16)
+            prediction = client_models[client_sid].predict(audio_data)
+            
+            for mdl, scores in client_models[client_sid].prediction_buffer.items():
+                curr_score = scores[-1]
+                if curr_score > 0.5:
+                    current_time = time.time()
+                    if current_time - last_detection_times[client_sid] > DEBOUNCE_PERIOD:
+                        last_detection_times[client_sid] = current_time
+                        print(f"Wake word detected by model {mdl} with score {curr_score}")
+                        sys.stdout.flush()
+                        curr_score = float(curr_score)
+                        socketio.emit('wake_word_detected', {'model': mdl, 'score': curr_score}, room=client_sid)
+                    else:
+                        print("Wake word detection ignored due to debounce period")
+                        sys.stdout.flush()
+        else:
+            print("Received non-bytes data")
+            print(data)
+    except Exception as e:
+        print(f"Error in handle_stream_audio: {e}")
+        sys.stdout.flush()
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5001)

@@ -1,5 +1,5 @@
 # Use a base image with system dependencies for PyAudio
-FROM python:3.9
+FROM python:3.9-slim
 
 # Install system dependencies required for PyAudio
 RUN apt-get update && apt-get install -y \
