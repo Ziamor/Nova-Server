@@ -9,3 +9,4 @@ Werkzeug==2.0.3
 gevent
 gevent-websocket
 speechrecognition
+vosk

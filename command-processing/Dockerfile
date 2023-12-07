@@ -1,12 +1,14 @@
 FROM python:3.9-slim
 
-# Install system dependencies required for PyAudio
+# Install system dependencies required for PyAudio and Vosk
 RUN apt-get update && apt-get install -y \
-	portaudio19-dev \
-	python3-pyaudio \
-	gcc \
-	&& rm -rf /var/lib/apt/lists/*
-	
+    portaudio19-dev \
+    python3-pyaudio \
+    gcc \
+    wget \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY requirements.txt /app/

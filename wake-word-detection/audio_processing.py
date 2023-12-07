@@ -49,7 +49,9 @@ def handle_disconnect():
     sys.stdout.flush()
 
 @socketio.on('stream_audio')
-def handle_stream_audio(data):
+def handle_stream_audio(frame):
+    frame_id = frame['frame_id']
+    data = frame['data']
     try:
         client_sid = request.sid
         if isinstance(data, bytes):
@@ -62,19 +64,18 @@ def handle_stream_audio(data):
                     current_time = time.time()
                     if current_time - last_detection_times[client_sid] > DEBOUNCE_PERIOD:
                         last_detection_times[client_sid] = current_time
-                        print(f"Wake word detected by model {mdl} with score {curr_score}")
-                        sys.stdout.flush()
+                        print(f"Wake word detected by model {mdl} with score {curr_score} on frame {frame_id}")                       
                         curr_score = float(curr_score)
-                        socketio.emit('wake_word_detected', {'model': mdl, 'score': curr_score}, room=client_sid)
+                        socketio.emit('wake_word_detected', {'model': mdl, 'score': curr_score, 'frame_id': frame_id }, room=client_sid)
                     else:
                         print("Wake word detection ignored due to debounce period")
-                        sys.stdout.flush()
         else:
             print("Received non-bytes data")
             print(data)
     except Exception as e:
         print(f"Error in handle_stream_audio: {e}")
-        sys.stdout.flush()
+        
+    sys.stdout.flush()
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5001)

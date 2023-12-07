@@ -3,8 +3,11 @@ from flask_socketio import SocketIO
 import pyaudio
 import numpy as np
 import speech_recognition as sr
+from vosk import Model, KaldiRecognizer
 import wave
 import sys
+import os
+import json
 
 app = Flask(__name__)
 socketio = SocketIO(app, async_mode='gevent', path='/command-processing')
@@ -16,20 +19,26 @@ RATE = 16000
 FRAME_DURATION_MS = 30
 CHUNK = int(RATE * FRAME_DURATION_MS / 1000)
 
-recognizer = sr.Recognizer()
+# Load Vosk model
+model = Model(os.path.join(os.path.dirname(__file__), 'models', 'vosk-model-small-en-us-0.15'))
+
+recognizer = KaldiRecognizer(model, RATE)
+recognizer.SetWords(True)
+recognizer.SetPartialWords(True)
+
+sys.stdout.flush()
 
 def process_audio_data(audio_data):
     print("Processing audio data")
-    """Process and transcribe audio data."""
-    audio = sr.AudioData(audio_data.tobytes(), RATE, 2)
-    try:
-        text = recognizer.recognize_google(audio)
+    if recognizer.AcceptWaveform(audio_data.tobytes()):
+        result = json.loads(recognizer.Result())
+        text = result.get('text', '')
         print("Transcribed text: ", text)
+        socketio.emit('command_detected', {'command': text})
         return text
-    except sr.UnknownValueError:
-        print("Google Speech Recognition could not understand audio")
-    except sr.RequestError as e:
-        print(f"Could not request results from Google Speech Recognition service; {e}")
+    else:
+        # Handle partial results if needed
+        print("Partial result")
         
     sys.stdout.flush()
 
@@ -50,14 +59,25 @@ def handle_error(e):
     sys.stdout.flush()
 
 @socketio.on('stream_audio')
-def handle_stream_audio(data):
+def handle_stream_audio(frame):
+    frame_id = frame['frame_id']
+    data = frame['data']
     if isinstance(data, bytes):
         audio_data = np.frombuffer(data, dtype=np.int16)
-        #process_audio_data(audio_data)
+        process_audio_data(audio_data)
     else:
         print("Received non-bytes data")
         print(data)
-        sys.stdout.flush()
+        
+    sys.stdout.flush()
+
+@socketio.on('process_command')
+def handle_process_command(data):
+	print("Received detect command event")
+	result = recognizer.FinalResult()
+	print("Final result: ", result)
+	sys.stdout.flush()
+	socketio.emit('command_detected', {'command': result})
 
 def process_wav_file(wav_file_path):
     """Process a WAV file for testing."""
