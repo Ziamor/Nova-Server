@@ -153,3 +153,4 @@ cython_debug/
 
 #models
 command-processing/models/*
+llm-processing/models/*
