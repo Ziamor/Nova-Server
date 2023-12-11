@@ -10,3 +10,4 @@ gevent
 gevent-websocket
 speechrecognition
 vosk
+requests

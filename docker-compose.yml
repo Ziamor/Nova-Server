@@ -1,6 +1,18 @@
 version: '3'
 
 services:
+  llm-processing:
+    build: ./llm-processing
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            count: 1
+            capabilities: [gpu]
+    networks:
+      - internal
+
   wake-word-detection:
     build: ./wake-word-detection
     volumes:
@@ -12,6 +24,8 @@ services:
     build: ./command-processing
     volumes:
       - ./command-processing:/app
+    depends_on:
+      - llm-processing
     networks:
       - internal
 
@@ -32,6 +46,7 @@ services:
     depends_on:
       - wake-word-detection
       - command-processing
+      - llm-processing
       - voice-synthesis
 
 networks:
